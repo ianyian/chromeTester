@@ -1,0 +1,12 @@
+{
+  "name": "pcb-test-collector",
+  "version": "1.0.0",
+  "description": "REST API (SQLite) that stores PCB board test results reported by the Chrome extension, and hosts the demo tester pages.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js"
+  }
+}

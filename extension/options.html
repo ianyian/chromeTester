@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>PCB Tester Collector — Settings</title><link rel="stylesheet" href="ui.css">
+<style>main { max-width: 760px; margin: 0 auto; } section { border: 1px solid var(--edge); background: var(--panel); margin: 12px 0; border-radius: 4px; } textarea { height: 280px; } .note { color: var(--dim); font-size: 11px; } pre { white-space: pre-wrap; font-size: 11px; color: var(--dim); }</style></head>
+<body>
+<header><b>PCB Tester Collector — Settings</b></header>
+<main>
+  <section>
+    <h3>Machine configuration</h3>
+    <p class="note">Priority (low → high): built-in defaults → bundled <code>config.json</code> → values saved here → Chrome managed policy.
+      Fields marked <span class="lock">🔒 policy</span> are enforced by the administrator and cannot be changed here.</p>
+    <label class="f">Tester ID <span class="lock" data-lock="tester_id"></span></label><input type="text" id="tester_id" placeholder="PCB-TESTER-001">
+    <label class="f">Machine name <span class="lock" data-lock="machine_name"></span></label><input type="text" id="machine_name" placeholder="PCB-LINUX-001">
+    <label class="f">API endpoint <span class="lock" data-lock="api_endpoint"></span></label><input type="text" id="api_endpoint">
+    <label class="f">Demo base URL <span class="lock" data-lock="demo_base_url"></span></label><input type="text" id="demo_base_url">
+    <label class="f">Retry interval (sec, min 30) <span class="lock" data-lock="retry_interval_sec"></span></label><input type="text" id="retry_interval_sec">
+    <label class="f"><input type="checkbox" id="enabled"> Reporting enabled <span class="lock" data-lock="enabled"></span></label>
+    <label class="f"><input type="checkbox" id="use_native_hostname"> Read Linux hostname through Native Messaging host <span class="lock" data-lock="use_native_hostname"></span></label>
+    <div class="note" id="nativeInfo"></div>
+    <div class="btns" style="margin-top:10px"><button id="save">Save</button><button id="reset">Reset to config.json</button><button id="test">Test API</button><span id="msg" class="note"></span></div>
+  </section>
+  <section>
+    <h3>Tester page profiles (JSON) <span class="lock" data-lock="profiles"></span></h3>
+    <p class="note">How each tester program page is read: URL pattern, status selector, serial selector, pass/fail words. Leave empty to use the built-in profiles.</p>
+    <textarea id="profiles" spellcheck="false"></textarea>
+    <div class="btns" style="margin-top:8px"><button id="saveProfiles">Save profiles</button><button id="defaultProfiles">Use built-in profiles</button></div>
+  </section>
+  <section>
+    <h3>Effective configuration</h3>
+    <pre id="effective"></pre>
+  </section>
+</main>
+<script src="options.js" type="module"></script>
+</body>
+</html>

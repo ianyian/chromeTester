@@ -1,0 +1,6 @@
+{
+  "tester_id": "PCB-TESTER-001",
+  "machine_name": "PCB-LINUX-001",
+  "api_endpoint": "https://mes.company.com/api/tester/completed",
+  "enabled": true
+}

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPT-04 Flying Probe</title>
+<link rel="stylesheet" href="../assets/tester.css">
+<style>
+  :root { --accent: #ff7043; }
+  .titlebar { background: linear-gradient(#3a2620, #1d1411); }
+  .status-lamp { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--edge); background: #0d1216; }
+  .status-lamp .lamp { width: 54px; height: 54px; border-radius: 50%; background: #333; box-shadow: inset 0 -6px 12px rgba(0,0,0,.5); flex: none; }
+  .status-lamp.s-busy .lamp { background: #ffb300; box-shadow: 0 0 20px #ffb300; animation: pulse .6s infinite; }
+  .status-lamp.s-ok .lamp { background: var(--ok); box-shadow: 0 0 24px var(--ok); }
+  .status-lamp.s-ng .lamp { background: var(--ng); box-shadow: 0 0 24px var(--ng); }
+  .status-lamp .label { font: 800 30px var(--sans); letter-spacing: 3px; }
+  .status-lamp.s-ok .label { color: var(--ok); } .status-lamp.s-ng .label { color: var(--ng); }
+  #fp-board-id { font: 700 15px var(--mono); color: var(--accent); padding: 6px 0; }
+</style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="logo" style="background:var(--accent)">FP</div>
+    <div><h1>AeroProbe 4-Axis — FPT-04</h1><div class="sub">Flying Probe Test · 4 probes · fixtureless</div></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+  <div class="menubar"><span>Job</span><span>Axes</span><span>Learn</span><span>Run</span><span>Repair Station</span></div>
+
+  <div class="main">
+    <section class="panel a-uut">
+      <h2>Job Status</h2>
+      <div class="body">
+        <div id="fp-board-id">S/N: (no board)</div>
+        <table class="kv">
+          <tr><td>Job</td><td>MBX200_FPT_r7</td></tr>
+          <tr><td>Probes</td><td>A1 A2 B1 B2</td></tr>
+          <tr><td>Last cycle</td><td id="cycle">--</td></tr>
+        </table>
+        <div class="status-lamp" style="margin-top:12px"><div class="lamp"></div><div><div class="label">STANDBY</div><div class="verdict-sub" id="fpSub" style="text-align:left"></div></div></div>
+        <div class="progress" id="progress"><i></i><span></span></div>
+        <div class="controls" style="margin-top:12px">
+          <div class="btnrow">
+            <button class="primary" id="btnStart">Start Job</button>
+            <button class="danger" id="btnAbort">E-Stop</button>
+            <button id="btnReset">Reset</button>
+          </div>
+          <label><span><input type="checkbox" id="chkAuto"> Conveyor auto-feed</span></label>
+          <label>Fail rate <input type="range" id="failRate" min="0" max="100"> <span id="failRateOut"></span></label>
+          <label>Speed <input type="range" id="speed" min="0.5" max="5" step="0.5"> <span id="speedOut"></span></label>
+        </div>
+      </div>
+    </section>
+    <section class="panel a-yield"><h2>Shift Summary</h2><div class="body"><div class="stats" id="stats"></div></div></section>
+    <section class="panel a-steps">
+      <h2>Measurements</h2>
+      <div class="body" style="padding:0">
+        <table class="steps"><thead><tr><th>#</th><th>Test</th><th>Comp</th><th>Lo</th><th>Meas</th><th>Hi</th><th>P/F</th></tr></thead><tbody id="steps"></tbody></table>
+      </div>
+    </section>
+    <section class="panel a-pcb"><h2>Probe Map</h2><div class="pcb-wrap" id="pcb"></div></section>
+    <section class="panel a-log"><h2>Machine Log</h2><div class="log" id="log"></div></section>
+  </div>
+  <div class="statusbar"><span><span class="dot"></span>Axes homed</span><span>Probe force 22 g</span><span>FPT-04</span></div>
+
+<script src="../assets/tester-engine.js"></script>
+<script>
+const R = (name, ref, nominal, tol, unit) => ({ name, ref, nominal, lo: nominal * (1 - tol), hi: nominal * (1 + tol), unit });
+TesterEngine({
+  testerId: 'FPT-04',
+  testerName: 'AeroProbe 4-Axis',
+  program: 'MBX200_FPT_r7',
+  boardModel: 'MB-X200',
+  serialPrefix: 'MBX200',
+  failRate: 0.25,
+  stopOnFail: false,
+  timing: { load: 2500, stepMin: 350, stepMax: 800, hold: 5000, unload: 1800, idle: 2500 },
+  steps: [
+    { name: 'Net continuity', ref: 'T1', unit: 'bool' },
+    { name: 'Net isolation', ref: 'T2', unit: 'bool' },
+    R('Resistance', 'R11', 330, .05, 'Ω'), R('Resistance', 'R12', 2200, .05, 'Ω'), R('Resistance', 'R13', 68000, .05, 'Ω'),
+    R('Capacitance', 'C11', 1e-6, .15, 'F'), R('Capacitance', 'C12', 4.7e-9, .1, 'F'),
+    R('Inductance', 'L2', 10e-6, .2, 'H'),
+    R('Diode Vf', 'D5', 0.68, .1, 'V'),
+    { name: 'Polarity check', ref: 'E2', unit: 'bool' },
+    { name: 'Missing component', ref: 'Q3', unit: 'bool' },
+    R('Zener Vz', 'D6', 5.1, .05, 'V'),
+  ],
+  mount: {
+    pcb: '#pcb', steps: '#steps', log: '#log', stats: '#stats', progress: '#progress', cycle: '#cycle', clock: '#clock',
+    btnStart: '#btnStart', btnAbort: '#btnAbort', btnReset: '#btnReset', chkAuto: '#chkAuto',
+    failRate: '#failRate', failRateOut: '#failRateOut', speed: '#speed', speedOut: '#speedOut',
+  },
+  ui: {
+    // FPT-04: lamp label PASSED / FAILED / TESTING / STANDBY; serial is embedded as "S/N: <serial>".
+    setStatus(st, info) {
+      const map = { IDLE: ['STANDBY', ''], LOADING: ['LOADING', 's-busy'], TESTING: ['TESTING', 's-busy'], PASSED: ['PASSED', 's-ok'], FAILED: ['FAILED', 's-ng'], UNLOADING: ['UNLOADING', ''] };
+      const [txt, cls] = map[st];
+      const lamp = document.querySelector('.status-lamp');
+      lamp.className = 'status-lamp ' + cls;
+      lamp.querySelector('.label').textContent = txt;
+      document.getElementById('fpSub').textContent = st === 'TESTING' && info.step ? info.step : st === 'FAILED' ? `${info.failedSteps.length} defect(s) → repair` : '';
+    },
+    setSerial(sn) { document.getElementById('fp-board-id').textContent = 'S/N: ' + (sn || '(no board)'); },
+  },
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FCT-02 Functional Tester</title>
+<link rel="stylesheet" href="../assets/tester.css">
+<style>
+  :root { --accent: #00e5ff; }
+  .titlebar { background: linear-gradient(#183344, #0d1d27); }
+  .fct-verdict { font: 800 34px/1 var(--sans); text-align: center; padding: 20px 6px; border-radius: 50px; border: 3px solid var(--edge); background: #0d1216; color: var(--dim); }
+  .fct-verdict[data-verdict="RUNNING"] { background: #0b3a66; color: #fff; border-color: var(--run); animation: pulse 1s infinite; }
+  .fct-verdict[data-verdict="LOADING"], .fct-verdict[data-verdict="UNLOADING"] { color: var(--accent); border-color: var(--accent); }
+  .fct-verdict[data-verdict="PASSED"] { background: var(--ok); color: #031; border-color: #8fffb9; }
+  .fct-verdict[data-verdict="FAILED"] { background: var(--ng); color: #fff; border-color: #ff9d9d; }
+  .rails { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-top: 10px; }
+  .rail { background: #050708; border: 1px solid var(--edge); padding: 6px; text-align: center; font: 700 15px var(--mono); color: #9fe8b0; }
+  .rail small { display: block; font: 10px var(--sans); color: var(--dim); }
+</style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="logo" style="background:var(--accent)">FCT</div>
+    <div><h1>FuncTest Studio 5 — FCT-02</h1><div class="sub">Functional Test · Power-on / Firmware / Interfaces</div></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+  <div class="menubar"><span>Sequence</span><span>Instruments</span><span>DUT</span><span>Limits</span><span>MES</span><span>?</span></div>
+
+  <div class="main">
+    <section class="panel a-uut">
+      <h2>DUT Information</h2>
+      <div class="body">
+        <table class="kv dut-info">
+          <tr><td>S/N</td><td data-field="sn" class="sn-big">-</td></tr>
+          <tr><td>Product</td><td data-field="product">MB-X200 Mainboard</td></tr>
+          <tr><td>Sequence</td><td data-field="program">MBX200_FCT_SEQ_2.1</td></tr>
+          <tr><td>Station</td><td data-field="station">FCT-02</td></tr>
+          <tr><td>Cycle time</td><td id="cycle">--</td></tr>
+        </table>
+        <div style="margin-top:12px" class="fct-verdict" data-verdict="READY">● READY</div>
+        <div class="verdict-sub" id="fctSub"></div>
+        <div class="progress" id="progress"><i></i><span></span></div>
+        <div class="rails">
+          <div class="rail"><small>12V IN</small><span id="r12">--</span></div>
+          <div class="rail"><small>5V</small><span id="r5">--</span></div>
+          <div class="rail"><small>3V3</small><span id="r33">--</span></div>
+          <div class="rail"><small>I(mA)</small><span id="rI">--</span></div>
+        </div>
+        <div class="controls" style="margin-top:12px">
+          <div class="btnrow">
+            <button class="primary" id="btnStart">Run Sequence</button>
+            <button class="danger" id="btnAbort">Terminate</button>
+            <button id="btnReset">Clear stats</button>
+          </div>
+          <label><span><input type="checkbox" id="chkAuto"> Continuous mode</span></label>
+          <label>Fail rate <input type="range" id="failRate" min="0" max="100"> <span id="failRateOut"></span></label>
+          <label>Speed <input type="range" id="speed" min="0.5" max="5" step="0.5"> <span id="speedOut"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel a-yield"><h2>Statistics</h2><div class="body"><div class="stats" id="stats"></div></div></section>
+
+    <section class="panel a-steps">
+      <h2>Sequence Steps</h2>
+      <div class="body" style="padding:0">
+        <table class="steps">
+          <thead><tr><th>#</th><th>Step</th><th>Node</th><th>Low</th><th>Value</th><th>High</th><th>Status</th></tr></thead>
+          <tbody id="steps"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel a-pcb"><h2>Fixture Camera</h2><div class="pcb-wrap" id="pcb"></div></section>
+    <section class="panel a-log"><h2>Execution Trace</h2><div class="log" id="log"></div></section>
+  </div>
+  <div class="statusbar"><span><span class="dot"></span>PSU connected</span><span>DMM: Keysight 34465A</span><span>MES: online</span></div>
+
+<script src="../assets/tester-engine.js"></script>
+<script>
+const V = (name, ref, lo, hi, unit, nominal) => ({ name, ref, lo, hi, unit, nominal });
+TesterEngine({
+  testerId: 'FCT-02',
+  testerName: 'FuncTest Studio 5',
+  program: 'MBX200_FCT_SEQ_2.1',
+  boardModel: 'MB-X200',
+  serialPrefix: 'MBX200',
+  failRate: 0.2,
+  stopOnFail: true,
+  timing: { load: 2200, stepMin: 300, stepMax: 900, hold: 6000, unload: 1500, idle: 2000 },
+  steps: [
+    V('Power-on current', 'P1', 0.08, 0.35, 'A', 0.18),
+    V('12V input', 'J1', 11.4, 12.6, 'V', 12),
+    V('5V rail', 'U1', 4.85, 5.15, 'V', 5.0),
+    V('3V3 rail', 'U2', 3.2, 3.4, 'V', 3.3),
+    V('1V8 rail', 'U3', 1.75, 1.85, 'V', 1.8),
+    V('5V ripple', 'E1', 0, 0.05, 'V', 0.018),
+    { name: 'Flash firmware', ref: 'U4', unit: 'bool' },
+    { name: 'Firmware CRC', ref: 'U4', unit: 'bool' },
+    { name: 'UART loopback', ref: 'J2', unit: 'bool' },
+    { name: 'I2C bus scan', ref: 'U5', unit: 'bool' },
+    { name: 'CAN bus', ref: 'U6', unit: 'bool' },
+    { name: 'USB enumeration', ref: 'J3', unit: 'bool' },
+    V('ADC calibration', 'U4', -0.005, 0.005, 'V', 0),
+    { name: 'Relay K1 switch', ref: 'K1', unit: 'bool' },
+    { name: 'Status LED', ref: 'D1', unit: 'bool' },
+    V('Ethernet link speed', 'J4', 95e6, 105e6, 'bps', 100e6),
+  ],
+  mount: {
+    pcb: '#pcb', steps: '#steps', log: '#log', stats: '#stats', progress: '#progress', cycle: '#cycle', clock: '#clock',
+    btnStart: '#btnStart', btnAbort: '#btnAbort', btnReset: '#btnReset', chkAuto: '#chkAuto',
+    failRate: '#failRate', failRateOut: '#failRateOut', speed: '#speed', speedOut: '#speedOut',
+  },
+  ui: {
+    // FCT-02 stores the machine state in a data-verdict attribute; the visible text has an icon prefix.
+    setStatus(st, info) {
+      const map = { IDLE: 'READY', TESTING: 'RUNNING' };
+      const v = map[st] || st;
+      const el = document.querySelector('.fct-verdict');
+      el.dataset.verdict = v;
+      el.textContent = ({ PASSED: '✔ ', FAILED: '✖ ' }[v] || '● ') + v;
+      document.getElementById('fctSub').textContent =
+        st === 'TESTING' && info.step ? info.step : st === 'FAILED' ? (info.failedSteps[0] || '') : '';
+      const on = st === 'TESTING' || st === 'PASSED' || st === 'FAILED';
+      const j = (n, s) => (n + (Math.random() - .5) * s).toFixed(2);
+      document.getElementById('r12').textContent = on ? j(12, .1) : '--';
+      document.getElementById('r5').textContent = on ? j(5, .04) : '--';
+      document.getElementById('r33').textContent = on ? j(3.3, .03) : '--';
+      document.getElementById('rI').textContent = on ? Math.round(180 + Math.random() * 40) : '--';
+    },
+    setSerial(sn) { document.querySelector('table.dut-info td[data-field="sn"]').textContent = sn || '-'; },
+  },
+});
+</script>
+</body>
+</html>
