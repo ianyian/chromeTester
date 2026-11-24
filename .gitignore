@@ -1,0 +1,3 @@
+*.pem
+server/data/
+node_modules/

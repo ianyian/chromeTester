@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICT-01 In-Circuit Tester</title>
+<link rel="stylesheet" href="../assets/tester.css">
+</head>
+<body>
+  <div class="titlebar">
+    <div class="logo">ICT</div>
+    <div><h1>TestMaster ICT 8800 — Station ICT-01</h1><div class="sub">In-Circuit Test · Bed-of-nails fixture FX-200A</div></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+  <div class="menubar"><span>File</span><span>Program</span><span>Fixture</span><span>Debug</span><span>Reports</span><span>Help</span></div>
+
+  <div class="main">
+    <!-- left column -->
+    <section class="panel a-uut">
+      <h2>Unit Under Test</h2>
+      <div class="body">
+        <table class="kv">
+          <tr><td>Serial No.</td><td><span id="ictSerial" class="sn-big">----</span></td></tr>
+          <tr><td>Board</td><td>MB-X200 Mainboard</td></tr>
+          <tr><td>Program</td><td id="ictProgram">MBX200_ICT_v3.4</td></tr>
+          <tr><td>Fixture</td><td>FX-200A (1024 pins)</td></tr>
+          <tr><td>Operator</td><td>OP-1187</td></tr>
+          <tr><td>Last cycle</td><td id="cycle">--</td></tr>
+        </table>
+        <div style="margin-top:12px" id="ictResult" class="verdict st-idle">IDLE</div>
+        <div class="verdict-sub" id="ictSub"></div>
+        <div class="progress" id="progress"><i></i><span></span></div>
+        <h2 style="margin:14px 0 6px;font-size:11px;color:var(--dim);letter-spacing:1.2px">OPERATOR CONTROL</h2>
+        <div class="controls">
+          <div class="btnrow">
+            <button class="primary" id="btnStart">▶ Start</button>
+            <button class="danger" id="btnAbort">■ Abort</button>
+            <button id="btnReset">Reset counters</button>
+          </div>
+          <label><span><input type="checkbox" id="chkAuto"> Auto cycle (handler)</span></label>
+          <label>Fail rate <input type="range" id="failRate" min="0" max="100"> <span id="failRateOut"></span></label>
+          <label>Speed <input type="range" id="speed" min="0.5" max="5" step="0.5"> <span id="speedOut"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel a-yield">
+      <h2>Yield</h2>
+      <div class="body"><div class="stats" id="stats"></div></div>
+    </section>
+
+    <section class="panel a-steps">
+      <h2>Test Steps</h2>
+      <div class="body" style="padding:0">
+        <table class="steps">
+          <thead><tr><th>#</th><th>Test</th><th>Ref</th><th>Lo</th><th>Meas</th><th>Hi</th><th>Res</th></tr></thead>
+          <tbody id="steps"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel a-pcb">
+      <h2>Board View — Probe Position</h2>
+      <div class="pcb-wrap" id="pcb"></div>
+    </section>
+
+    <section class="panel a-log">
+      <h2>Event Log</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+  <div class="statusbar"><span><span class="dot"></span>Fixture OK</span><span>Vacuum: -0.82 bar</span><span>Station ICT-01</span><span>Line SMT-3</span></div>
+
+<script src="../assets/tester-engine.js"></script>
+<script>
+const R = (name, ref, nominal, tol, unit) => ({ name, ref, nominal, lo: nominal * (1 - tol), hi: nominal * (1 + tol), unit });
+TesterEngine({
+  testerId: 'ICT-01',
+  testerName: 'TestMaster ICT 8800',
+  program: 'MBX200_ICT_v3.4',
+  boardModel: 'MB-X200',
+  serialPrefix: 'MBX200',
+  failRate: 0.15,
+  stopOnFail: false,
+  timing: { load: 1800, stepMin: 120, stepMax: 380, hold: 5000, unload: 1200, idle: 1500 },
+  steps: [
+    { name: 'Shorts test', ref: 'P1', unit: 'bool' },
+    { name: 'Opens test', ref: 'P1', unit: 'bool' },
+    R('Resistor', 'R1', 10000, .05, 'Ω'), R('Resistor', 'R2', 4700, .05, 'Ω'), R('Resistor', 'R3', 220, .05, 'Ω'),
+    R('Resistor', 'R4', 1000, .05, 'Ω'), R('Resistor', 'R5', 47000, .05, 'Ω'), R('Resistor', 'R6', 100, .02, 'Ω'),
+    R('Capacitor', 'C1', 100e-9, .1, 'F'), R('Capacitor', 'C2', 10e-6, .2, 'F'), R('Capacitor', 'C3', 22e-12, .1, 'F'),
+    R('Electrolytic cap', 'E1', 470e-6, .2, 'F'),
+    R('Inductor', 'L1', 4.7e-6, .2, 'H'),
+    R('Diode Vf', 'D1', 0.62, .12, 'V'), R('Diode Vf', 'D2', 0.31, .15, 'V'),
+    R('Transistor hFE', 'Q1', 200, .3, ''),
+    { name: 'IC protection diodes', ref: 'U1', unit: 'bool' },
+    { name: 'IC protection diodes', ref: 'U2', unit: 'bool' },
+    R('Crystal freq', 'Y1', 25e6, .0005, 'Hz'),
+    { name: 'Connector pins', ref: 'J1', unit: 'bool' },
+  ],
+  mount: {
+    pcb: '#pcb', steps: '#steps', log: '#log', stats: '#stats', progress: '#progress', cycle: '#cycle', clock: '#clock',
+    btnStart: '#btnStart', btnAbort: '#btnAbort', btnReset: '#btnReset', chkAuto: '#chkAuto',
+    failRate: '#failRate', failRateOut: '#failRateOut', speed: '#speed', speedOut: '#speedOut',
+  },
+  ui: {
+    // ICT-01 shows the verdict as plain text: IDLE / LOADING / TESTING / PASSED / FAILED / UNLOADING
+    setStatus(st, info) {
+      const el = document.getElementById('ictResult');
+      el.textContent = st;
+      el.className = 'verdict ' + ({ PASSED: 'st-pass', FAILED: 'st-fail', TESTING: 'st-testing', LOADING: 'st-loading' }[st] || 'st-idle');
+      document.getElementById('ictSub').textContent =
+        st === 'TESTING' && info.step ? `${info.step}  ${info.done}/${info.total}` :
+        st === 'FAILED' ? `${info.failedSteps.length} failure(s)` : '';
+    },
+    setSerial(sn) { document.getElementById('ictSerial').textContent = sn || '----'; },
+  },
+});
+</script>
+</body>
+</html>

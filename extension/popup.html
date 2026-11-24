@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="ui.css">
+<style>body { width: 520px; } #history { max-height: 230px; overflow: auto; display: block; }</style></head>
+<body>
+  <header><b>PCB Tester Collector</b><span class="sp"></span><span id="apiPill" class="pill">API ?</span><span id="enPill" class="pill">…</span></header>
+  <section>
+    <table class="kv">
+      <tr><td>Tester ID</td><td id="testerId">-</td></tr>
+      <tr><td>Machine</td><td id="machine">-</td></tr>
+      <tr><td>API endpoint</td><td id="endpoint">-</td></tr>
+      <tr><td>Sent / Pending</td><td><span id="sent">0</span> / <span id="pending">0</span></td></tr>
+    </table>
+  </section>
+  <section>
+    <h3>Monitored tabs</h3>
+    <table><thead><tr><th>Tab</th><th>Station</th><th>State</th><th>Serial</th><th>Last verdict</th></tr></thead><tbody id="tabs"></tbody></table>
+  </section>
+  <section>
+    <h3>Recent uploads</h3>
+    <table id="history"><thead><tr><th>Time</th><th>Station</th><th>Serial</th><th>Result</th><th>Upload</th></tr></thead><tbody id="hist"></tbody></table>
+  </section>
+  <section class="btns">
+    <button id="openDemo">Open demo testers</button>
+    <button id="dashboard">Dashboard</button>
+    <button id="retry">Retry now</button>
+    <button id="clear">Clear history</button>
+    <button id="options">Settings</button>
+  </section>
+<script src="popup.js" type="module"></script>
+</body>
+</html>

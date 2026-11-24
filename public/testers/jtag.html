@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BSC-03 Boundary Scan</title>
+<link rel="stylesheet" href="../assets/tester.css">
+<style>
+  :root { --accent: #c6ff00; --panel: #151515; --panel-2: #1f1f1f; --edge: #333; }
+  .titlebar { background: linear-gradient(#2a2a2a, #161616); }
+  #jtag-state { font: 800 52px/1 var(--mono); text-align: center; padding: 18px 0; border: 2px solid var(--edge); background: #000; color: #555; letter-spacing: 6px; }
+  #jtag-state.run { color: var(--run); border-color: var(--run); }
+  #jtag-state.pass { color: var(--ok); border-color: var(--ok); text-shadow: 0 0 18px var(--ok); }
+  #jtag-state.fail { color: var(--ng); border-color: var(--ng); text-shadow: 0 0 18px var(--ng); }
+  .chain { display: flex; gap: 6px; align-items: center; margin-top: 10px; font: 11px var(--mono); flex-wrap: wrap; }
+  .chain b { padding: 4px 6px; border: 1px solid var(--edge); background: #0a0a0a; color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="logo" style="background:var(--accent)">JT</div>
+    <div><h1>ScanPro Boundary-Scan Runtime — BSC-03</h1><div class="sub">IEEE 1149.1 / JTAG · TAP controller x2</div></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+  <div class="menubar"><span>Project</span><span>Netlist</span><span>BSDL</span><span>Run</span><span>Diagnostics</span></div>
+
+  <div class="main">
+    <section class="panel a-uut">
+      <h2>Board</h2>
+      <div class="body">
+        <label style="color:var(--dim);font-size:11px">BOARD SERIAL</label>
+        <input id="dutSn" class="ro" readonly value="">
+        <table class="kv" style="margin-top:8px">
+          <tr><td>Project</td><td>MBX200_BSCAN.prj</td></tr>
+          <tr><td>TCK</td><td>10 MHz</td></tr>
+          <tr><td>Last run</td><td id="cycle">--</td></tr>
+        </table>
+        <div class="chain">TDI → <b>U1 FPGA</b> → <b>U4 MCU</b> → <b>U7 CPLD</b> → TDO</div>
+        <div style="margin-top:12px" id="jtag-state">READY</div>
+        <div class="verdict-sub" id="jtagSub"></div>
+        <div class="progress" id="progress"><i></i><span></span></div>
+        <div class="controls" style="margin-top:12px">
+          <div class="btnrow">
+            <button class="primary" id="btnStart">Execute</button>
+            <button class="danger" id="btnAbort">Stop</button>
+            <button id="btnReset">Reset</button>
+          </div>
+          <label><span><input type="checkbox" id="chkAuto"> Loop execution</span></label>
+          <label>Fail rate <input type="range" id="failRate" min="0" max="100"> <span id="failRateOut"></span></label>
+          <label>Speed <input type="range" id="speed" min="0.5" max="5" step="0.5"> <span id="speedOut"></span></label>
+        </div>
+      </div>
+    </section>
+    <section class="panel a-yield"><h2>Counters</h2><div class="body"><div class="stats" id="stats"></div></div></section>
+    <section class="panel a-steps">
+      <h2>Test Actions</h2>
+      <div class="body" style="padding:0">
+        <table class="steps"><thead><tr><th>#</th><th>Action</th><th>Device</th><th>Min</th><th>Read</th><th>Max</th><th>Result</th></tr></thead><tbody id="steps"></tbody></table>
+      </div>
+    </section>
+    <section class="panel a-pcb"><h2>Layout Viewer</h2><div class="pcb-wrap" id="pcb"></div></section>
+    <section class="panel a-log"><h2>Console</h2><div class="log" id="log"></div></section>
+  </div>
+  <div class="statusbar"><span><span class="dot"></span>Controller USB-JTAG #A1F3</span><span>Vref 3.30V</span><span>BSC-03</span></div>
+
+<script src="../assets/tester-engine.js"></script>
+<script>
+TesterEngine({
+  testerId: 'BSC-03',
+  testerName: 'ScanPro Boundary-Scan',
+  program: 'MBX200_BSCAN.prj',
+  boardModel: 'MB-X200',
+  serialPrefix: 'MBX200',
+  failRate: 0.1,
+  stopOnFail: false,
+  timing: { load: 1500, stepMin: 250, stepMax: 700, hold: 4000, unload: 1000, idle: 1200 },
+  steps: [
+    { name: 'Chain integrity', ref: 'J5', unit: 'bool' },
+    { name: 'IDCODE', ref: 'U1', unit: 'bool' },
+    { name: 'IDCODE', ref: 'U4', unit: 'bool' },
+    { name: 'IDCODE', ref: 'U7', unit: 'bool' },
+    { name: 'BYPASS register', ref: 'U1', unit: 'bool' },
+    { name: 'Interconnect nets 1-128', ref: 'T1', unit: 'bool' },
+    { name: 'Interconnect nets 129-256', ref: 'T2', unit: 'bool' },
+    { name: 'Pull resistor test', ref: 'R7', unit: 'bool' },
+    { name: 'DDR address lines', ref: 'U8', unit: 'bool' },
+    { name: 'DDR data lines', ref: 'U8', unit: 'bool' },
+    { name: 'SPI flash JEDEC ID', ref: 'U9', unit: 'bool' },
+    { name: 'Cluster: Ethernet PHY', ref: 'U10', unit: 'bool' },
+  ],
+  mount: {
+    pcb: '#pcb', steps: '#steps', log: '#log', stats: '#stats', progress: '#progress', cycle: '#cycle', clock: '#clock',
+    btnStart: '#btnStart', btnAbort: '#btnAbort', btnReset: '#btnReset', chkAuto: '#chkAuto',
+    failRate: '#failRate', failRateOut: '#failRateOut', speed: '#speed', speedOut: '#speedOut',
+  },
+  ui: {
+    // BSC-03 uses short words PASS / FAIL / RUN / READY, and the serial lives in an <input> value.
+    setStatus(st, info) {
+      const map = { IDLE: ['READY', ''], LOADING: ['LOAD', 'run'], TESTING: ['RUN', 'run'], PASSED: ['PASS', 'pass'], FAILED: ['FAIL', 'fail'], UNLOADING: ['EJECT', ''] };
+      const [txt, cls] = map[st];
+      const el = document.getElementById('jtag-state');
+      el.textContent = txt; el.className = cls;
+      document.getElementById('jtagSub').textContent = st === 'TESTING' && info.step ? info.step : '';
+    },
+    setSerial(sn) { document.getElementById('dutSn').value = sn || ''; },
+  },
+});
+</script>
+</body>
+</html>

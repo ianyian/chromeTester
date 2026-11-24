@@ -1,0 +1,22 @@
+:root { --bg:#10161a; --panel:#182127; --edge:#2b3842; --text:#d5dde2; --dim:#80919c; --ok:#19e36b; --ng:#ff4d4d; --warn:#ffb300; --run:#2fa8ff; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.4 "Segoe UI", Roboto, Arial, sans-serif; }
+header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: linear-gradient(#2c3740,#1a2229); border-bottom: 2px solid var(--warn); }
+header b { font-size: 13px; } header .sp { flex: 1; }
+.pill { font: 600 10px monospace; padding: 2px 6px; border-radius: 9px; background: #333; }
+.pill.ok { background: #145c32; color: #bfffd6; } .pill.ng { background: #6b1a1a; color: #ffd0d0; } .pill.warn { background: #6b4b00; color: #ffe7a6; }
+section { padding: 8px 10px; border-bottom: 1px solid var(--edge); }
+h3 { margin: 0 0 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); }
+table { width: 100%; border-collapse: collapse; font: 11px monospace; }
+td, th { padding: 3px 4px; border-bottom: 1px solid #222d34; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+th { color: var(--dim); font: 600 10px sans-serif; }
+.PASSED, .sent { color: var(--ok); font-weight: 700; } .FAILED, .rejected { color: var(--ng); font-weight: 700; } .pending { color: var(--warn); font-weight: 700; }
+.kv td:first-child { color: var(--dim); width: 38%; }
+button { font: 600 11px sans-serif; padding: 5px 9px; border-radius: 3px; border: 1px solid #44525d; background: linear-gradient(#34414b,#222b32); color: var(--text); cursor: pointer; }
+button:hover { filter: brightness(1.2); }
+.btns { display: flex; gap: 5px; flex-wrap: wrap; }
+.empty { color: var(--dim); font-style: italic; }
+input[type=text], textarea { width: 100%; background: #0a0e11; color: var(--text); border: 1px solid var(--edge); padding: 6px; font: 12px monospace; border-radius: 3px; }
+input:disabled, textarea:disabled { opacity: .55; }
+label.f { display: block; margin: 8px 0 3px; color: var(--dim); font-size: 11px; }
+.lock { color: var(--warn); font-size: 10px; margin-left: 6px; }

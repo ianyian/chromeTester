@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvGNvstwE91zFwHhAv5EVsE4YP6PtLct3rQgzdvzqB0tTSWHVo1XBGCVdjOusyfhIqWZ3kC2TXOduXpfT7RjaNjFfp8DWNNS3egYusvxbydbtSEwLxc+K4tKo5YQS40I4oPQ591E9Dy8mNXCeYmA/tQcOkNqDFobqj+SqunK42+UM5wJpHszElPP9C60xkNeCtcmpscxaTrTze/ygdfjNUQTOeWTzass6ZlLH+6bF4XhRiZ4VhmNMsBDQPtd6vB0ZpRfBwST+IBkUMXoXbnbYu10PVxLJBtOnS8lcKYUW3n52KfmuN3A9uVd0dyUb/IgLabN8ts7qJM/IBP+HzOGkTwIDAQAB",
+  "name": "PCB Tester Result Collector",
+  "version": "1.0.0",
+  "description": "Monitors PCB tester program tabs, detects PASSED/FAILED verdicts and reports the board serial number to the MES REST API.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PCB Tester Collector"
+  },
+  "options_page": "options.html",
+  "storage": {
+    "managed_schema": "managed_schema.json"
+  }
+}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Results Dashboard</title>
+<link rel="stylesheet" href="assets/tester.css">
+<style>
+  .wrap { padding: 10px; display: grid; gap: 10px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .kpi { background: var(--panel); border: 1px solid var(--edge); padding: 12px; }
+  .kpi b { display: block; font: 700 30px var(--mono); }
+  .kpi small { color: var(--dim); text-transform: uppercase; letter-spacing: 1px; font-size: 10px; }
+  .stations { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .st { background: var(--panel); border: 1px solid var(--edge); padding: 10px; }
+  .st h3 { margin: 0 0 4px; font-size: 14px; color: var(--accent); }
+  .bar { height: 8px; background: var(--ng); margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--ok); }
+  table.res { width: 100%; border-collapse: collapse; font: 12px var(--mono); }
+  table.res th { text-align: left; color: var(--dim); font: 600 11px var(--sans); padding: 5px; background: var(--panel-2); position: sticky; top: 0; }
+  table.res td { padding: 4px 5px; border-bottom: 1px solid #1f2930; }
+  td.PASSED { color: var(--ok); font-weight: 700; } td.FAILED { color: var(--ng); font-weight: 700; }
+  tr.new { animation: flash 1.5s; } @keyframes flash { from { background: #24527a; } }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .filters input, .filters select { background: #070a0c; border: 1px solid var(--edge); color: var(--text); padding: 5px; font: 12px var(--mono); }
+  @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+  <div class="titlebar"><div class="logo">MES</div><div><h1>Test Results — Central Collector</h1><div class="sub">SQLite · POST /api/tester/completed</div></div><div class="spacer"></div><div class="clock" id="clock"></div></div>
+  <div class="wrap">
+    <div class="kpis">
+      <div class="kpi"><b id="kTotal">0</b><small>Boards reported</small></div>
+      <div class="kpi"><b id="kPass" style="color:var(--ok)">0</b><small>Passed</small></div>
+      <div class="kpi"><b id="kFail" style="color:var(--ng)">0</b><small>Failed</small></div>
+      <div class="kpi"><b id="kYield" style="color:var(--accent)">--</b><small>First-pass yield</small></div>
+    </div>
+    <div class="stations" id="stations"></div>
+    <section class="panel">
+      <h2>Latest results</h2>
+      <div class="body">
+        <div class="filters">
+          <input id="fSerial" placeholder="serial contains…">
+          <select id="fStatus"><option value="">All results</option><option>PASSED</option><option>FAILED</option></select>
+          <select id="fStation"><option value="">All stations</option></select>
+          <span class="spacer" style="flex:1"></span>
+          <button class="danger" id="btnClear">Clear database</button>
+        </div>
+        <div style="max-height:60vh;overflow:auto;margin-top:8px">
+          <table class="res">
+            <thead><tr><th>ID</th><th>Received</th><th>Serial number</th><th>Result</th><th>Tester ID</th><th>Machine</th><th>Tab</th><th>Station</th><th>Program</th><th>Cycle</th><th>Failed steps</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let lastMaxId = 0;
+const knownStations = new Set();
+
+async function load() {
+  const q = new URLSearchParams({ limit: 200 });
+  if ($('fSerial').value) q.set('serial', $('fSerial').value);
+  if ($('fStatus').value) q.set('status', $('fStatus').value);
+  if ($('fStation').value) q.set('station', $('fStation').value);
+  const [res, stats] = await Promise.all([fetch('/api/test-results?' + q).then((r) => r.json()), fetch('/api/stats').then((r) => r.json())]);
+
+  $('kTotal').textContent = stats.total; $('kPass').textContent = stats.passed; $('kFail').textContent = stats.failed;
+  $('kYield').textContent = stats.yield == null ? '--' : stats.yield + '%';
+  $('stations').innerHTML = stats.testers.map((t) => `
+    <div class="st"><h3>${esc(t.station || '?')} <small style="color:var(--dim);font-weight:400">${esc(t.station_name || '')}</small></h3>
+      <div style="font:12px var(--mono)">${esc(t.tester_id)} · ${esc(t.machine_name)}</div>
+      <div style="font:12px var(--mono)">${t.total} boards · <span style="color:var(--ok)">${t.passed} P</span> · <span style="color:var(--ng)">${t.failed} F</span> · yield ${t.yield}%</div>
+      <div class="bar"><i style="width:${t.yield || 0}%"></i></div></div>`).join('');
+  for (const t of stats.testers) if (t.station && !knownStations.has(t.station)) {
+    knownStations.add(t.station); const o = document.createElement('option'); o.textContent = t.station; $('fStation').appendChild(o);
+  }
+
+  const maxBefore = lastMaxId;
+  $('rows').innerHTML = res.results.map((r) => `
+    <tr class="${maxBefore && r.id > maxBefore ? 'new' : ''}"><td>${r.id}</td><td>${new Date(r.received_at).toLocaleTimeString()}</td>
+    <td>${esc(r.serial_number)}</td><td class="${esc(r.status)}">${esc(r.status)}</td><td>${esc(r.tester_id)}</td><td>${esc(r.machine_name)}</td>
+    <td>${r.tab_id ?? ''}</td><td>${esc(r.station)}</td><td>${esc(r.program)}</td>
+    <td>${r.cycle_time_ms ? (r.cycle_time_ms / 1000).toFixed(1) + 's' : ''}</td>
+    <td style="color:var(--ng);white-space:normal">${esc((r.failed_steps || []).join(', '))}</td></tr>`).join('')
+    || '<tr><td colspan="11" style="color:var(--dim)">No results yet. Open the tester tabs with the extension installed.</td></tr>';
+  lastMaxId = Math.max(lastMaxId, ...res.results.map((r) => r.id), 0);
+}
+
+['fSerial', 'fStatus', 'fStation'].forEach((id) => $(id).addEventListener('input', load));
+$('btnClear').onclick = async () => { if (confirm('Delete all test results from the demo database?')) { await fetch('/api/test-results', { method: 'DELETE' }); lastMaxId = 0; load(); } };
+setInterval(() => { $('clock').textContent = new Date().toLocaleString(); }, 1000);
+load(); setInterval(load, 2000);
+</script>
+</body>
+</html>

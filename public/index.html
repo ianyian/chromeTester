@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PCB Test Line Simulator</title>
+<link rel="stylesheet" href="assets/tester.css">
+<style>
+  .wrap { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+  a.card { display: block; text-decoration: none; color: var(--text); background: var(--panel); border: 1px solid var(--edge); border-left: 5px solid var(--c); padding: 14px; border-radius: 3px; }
+  a.card:hover { filter: brightness(1.2); }
+  a.card b { display: block; font-size: 16px; color: var(--c); }
+  a.card small { color: var(--dim); }
+  code { color: var(--accent); }
+  ol li { margin: 4px 0; }
+</style>
+</head>
+<body>
+  <div class="titlebar"><div class="logo">PCB</div><div><h1>SMT Line 3 — Test Station Simulator</h1><div class="sub">Demo tester programs for the Chrome extension</div></div></div>
+  <div class="wrap">
+    <p>Each page below simulates a different vendor's tester program, with its own layout and status wording. Open them in separate tabs. The <b>PCB Tester Result Collector</b> extension detects each PASSED / FAILED verdict and posts the board serial to the REST API.</p>
+    <div class="grid">
+      <a class="card" style="--c:#ffb300" href="testers/ict.html" target="_blank"><b>ICT-01</b>In-Circuit Test<br><small>status text: PASSED / FAILED</small></a>
+      <a class="card" style="--c:#00e5ff" href="testers/fct.html" target="_blank"><b>FCT-02</b>Functional Test<br><small>status in data-verdict attribute</small></a>
+      <a class="card" style="--c:#c6ff00" href="testers/jtag.html" target="_blank"><b>BSC-03</b>Boundary Scan / JTAG<br><small>PASS / FAIL, serial in &lt;input&gt;</small></a>
+      <a class="card" style="--c:#ff7043" href="testers/flying-probe.html" target="_blank"><b>FPT-04</b>Flying Probe<br><small>serial as "S/N: …" (regex)</small></a>
+      <a class="card" style="--c:#19e36b" href="dashboard.html" target="_blank"><b>Dashboard</b>Results saved in SQLite<br><small>live view of /api/test-results</small></a>
+    </div>
+    <h2 style="font-size:14px;margin-top:28px">Quick start</h2>
+    <ol>
+      <li>Load <code>extension/</code> in <code>chrome://extensions</code> with Developer mode → <i>Load unpacked</i>.</li>
+      <li>Click the extension icon → <b>Open demo testers</b>. This opens all 4 testers in background tabs.</li>
+      <li>Watch the <a href="dashboard.html" style="color:var(--accent)">dashboard</a> fill up as boards pass or fail.</li>
+    </ol>
+  </div>
+</body>
+</html>

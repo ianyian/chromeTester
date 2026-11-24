@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "properties": {
+    "tester_id": {
+      "type": "string",
+      "title": "Tester ID",
+      "description": "Machine-level tester ID, e.g. PCB-TESTER-001. If empty and use_native_hostname is true, the Linux hostname is used."
+    },
+    "machine_name": {
+      "type": "string",
+      "title": "Machine name"
+    },
+    "api_endpoint": {
+      "type": "string",
+      "title": "REST endpoint that receives completed test results"
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Enable reporting"
+    },
+    "use_native_hostname": {
+      "type": "boolean",
+      "title": "Ask the native messaging host for the Linux hostname"
+    },
+    "retry_interval_sec": {
+      "type": "integer",
+      "title": "Retry interval for unsent results (seconds, min 30)"
+    },
+    "demo_base_url": {
+      "type": "string",
+      "title": "Base URL of the demo tester pages"
+    },
+    "profiles": {
+      "type": "array",
+      "title": "Tester page profiles (overrides built-in list)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url_pattern": {
+            "type": "string"
+          },
+          "station": {
+            "type": "string"
+          },
+          "station_name": {
+            "type": "string"
+          },
+          "program": {
+            "type": "string"
+          },
+          "status_selector": {
+            "type": "string"
+          },
+          "status_source": {
+            "type": "string"
+          },
+          "serial_selector": {
+            "type": "string"
+          },
+          "serial_source": {
+            "type": "string"
+          },
+          "serial_regex": {
+            "type": "string"
+          },
+          "failed_selector": {
+            "type": "string"
+          },
+          "pass_values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fail_values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "running_values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failed_cells": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "require_element": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

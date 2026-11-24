@@ -1,0 +1,9 @@
+{
+  "tester_id": "PCB-TESTER-001",
+  "machine_name": "PCB-LINUX-001",
+  "api_endpoint": "http://localhost:3000/api/tester/completed",
+  "enabled": true,
+  "use_native_hostname": false,
+  "retry_interval_sec": 30,
+  "demo_base_url": "http://localhost:3000"
+}
