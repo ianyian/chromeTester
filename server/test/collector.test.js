@@ -7,7 +7,7 @@ import { DEFAULT_PROFILES, validateProfiles } from '../../extension/profiles.js'
 const source = await fs.readFile(new URL('../../extension/content.js', import.meta.url), 'utf8');
 const image = DEFAULT_PROFILES.find((p) => p.id === 'demo-image');
 
-async function collector(profile, initial = 'IDLE') {
+async function collector(profile, initial = 'IDLE', apiName = 'chrome') {
   const messages = [];
   const overall = { textContent: initial, getAttribute: () => overall.textContent };
   const serial = { textContent: 'SN-123456', value: 'SN-123456' };
@@ -30,7 +30,7 @@ async function collector(profile, initial = 'IDLE') {
       querySelector: (selector) => selector === profile.status_selector ? overall : serial,
       querySelectorAll: (selector) => selector === profile.cells?.selector ? cells : [],
     },
-    chrome: { runtime: { sendMessage: async (msg) => {
+    [apiName]: { runtime: { sendMessage: async (msg) => {
       if (msg.type === 'getProfile') return { profile };
       messages.push(JSON.parse(JSON.stringify(msg)));
       return { ok: true };
@@ -39,6 +39,7 @@ async function collector(profile, initial = 'IDLE') {
     setInterval: (fn) => { check = fn; },
     setTimeout: (fn) => fn(),
   });
+  if (apiName === 'browser') context.chrome = {};
   context.window.top = context.window;
   await vm.runInContext(source, context);
   return {
@@ -49,8 +50,8 @@ async function collector(profile, initial = 'IDLE') {
   };
 }
 
-test('waits for all eight cells and overall completion, excluding malfunction; retests once per cycle', async () => {
-  const c = await collector(image);
+for (const apiName of ['chrome', 'browser']) test(`${apiName}: waits for all eight cells and overall completion, excluding malfunction; retests once per cycle`, async () => {
+  const c = await collector(image, 'IDLE', apiName);
   c.overall.textContent = 'TESTING';
   c.cells.slice(0, 7).forEach((cell) => { cell.status.textContent = 'TESTING'; });
   await c.tick();

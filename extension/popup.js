@@ -1,3 +1,4 @@
+const chrome = globalThis.browser || globalThis.chrome;
 const $ = (id) => document.getElementById(id);
 const send = (type, extra = {}) => chrome.runtime.sendMessage({ type, ...extra });
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

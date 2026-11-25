@@ -1,6 +1,6 @@
 # PCB Tester Result Collector
 
-A Chrome extension that watches several PCB tester program tabs at once. When a tab's test cycle
+Chrome and Firefox add-ons that watch several PCB tester program tabs at once. When a tab's test cycle
 finishes with **PASSED** or **FAILED**, it reads the **board serial number** from the page and posts it
 to a REST API that stores it in a database (SQLite for this demo). Multi-cell testers upload all active
 serials together only after the full batch completes, excluding malfunction cells from pass/fail.
@@ -21,6 +21,8 @@ serials together only after the full batch completes, excluding malfunction cell
 | Folder | What it is |
 |---|---|
 | `extension/` | Chrome MV3 extension: content script, service worker, popup, options page, native-messaging host |
+| `server/firefox-addon/` | Generated Firefox MV3 add-on using the same source; created by `npm run build:firefox` |
+| `server/firefox-artifacts/` | Generated unsigned Firefox ZIP package |
 | `server/` | REST API plus static host for the demo pages. **No dependencies**: it uses Node's built-in `node:sqlite` |
 | `public/testers/` | 5 simulated tester programs (ICT, FCT, JTAG boundary scan, flying probe, eight-cell image test), each with different markup |
 | `public/dashboard.html` | Live view of what landed in the database |
@@ -28,7 +30,8 @@ serials together only after the full batch completes, excluding malfunction cell
 
 ## Quick start (demo)
 
-Requires **Node.js 22.13 or newer** (for the built-in SQLite) and Google Chrome or Chromium.
+Requires **Node.js 22.13 or newer** (for the built-in SQLite) and Google Chrome, Chromium, or
+**Firefox 140 or newer (including ESR)**.
 
 ```bash
 cd server
@@ -43,6 +46,61 @@ Then:
 
 Each tester page has its own controls: Start / Abort, auto cycle, **fail rate**, and **speed**.
 You can stop the server for a while to see results queue up in the extension (red badge). They upload automatically once the API is back.
+
+### Firefox installation
+
+Build the Firefox add-on from the same source used by Chrome:
+
+```bash
+cd server
+npm install
+npm run build:firefox
+```
+
+The build validates the add-on with Mozilla's `web-ext` tool and creates:
+
+- `server/firefox-addon/manifest.json` for temporary development installation.
+- An unsigned ZIP in `server/firefox-artifacts/` for signing/distribution.
+
+For a local trial:
+
+1. Start the demo API with `npm start` if it is not already running.
+2. Open Firefox's `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on**, then select `server/firefox-addon/manifest.json`.
+4. Open the add-on popup, configure the machine ID and API URL in **Settings**, then click
+   **Open demo testers**. Check the same dashboard used by Chrome.
+5. After source updates, rebuild, click **Reload** in `about:debugging`, and reload tester tabs.
+
+Temporary installation ends when Firefox closes. For production, submit the generated ZIP to
+[Mozilla Add-ons for unlisted signing](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/).
+Install the returned **signed `.xpi`** using Firefox's **Install Add-on From File** menu in
+`about:addons`, or deploy it with Firefox enterprise policy. The build does not upload code or sign
+the package automatically. Unsigned ZIPs cannot be permanently installed in standard Firefox.
+
+The Firefox package uses an MV3 background event page instead of Chrome's service worker and
+Firefox's Promise-based `browser` API. Collection rules, batch uploads, retry queue, popup, and
+settings are shared; there is no second implementation to maintain. Chrome's manifest stays unchanged.
+Settings, queues, and upload history are separate in each browser; configure the Firefox add-on too.
+Do not monitor the same live test cycle in both browsers: independently generated event IDs will
+produce separate records. Data-collection permissions declare tester-page content and URLs sent to
+the configured API; the add-on also sends configured machine identifiers and result timestamps.
+It does not upload unrelated browsing history.
+
+Optional Linux hostname support uses the same native host with Firefox-specific registration:
+
+```bash
+sudo bash extension/native-host/install.sh '' firefox
+```
+
+Run that command from the repository root, then enable **Read Linux hostname through Native Messaging
+host** in Firefox settings. Omit `sudo` for a current-user installation. The existing Chrome installer
+command is unchanged. Firefox uses ID `pcb-tester-collector@chrome-tester` and `allowed_extensions`,
+not Chrome's ID and `allowed_origins`.
+
+For locked production settings, use Firefox's
+[`3rdparty` enterprise policy or managed-storage native manifest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/managed)
+with that Firefox add-on ID. Chrome policy files cannot be reused unchanged. Restart Firefox after
+managed-policy changes. Manually saved settings work without policy or a native host.
 
 ## How detection works
 
@@ -224,8 +282,11 @@ npm test
 ```
 
 Uses Node's built-in test runner with no dependencies. Tests cover cell completion/skip gating,
-single-board detection, concurrent uploads, batch atomicity, retry deduplication, and SQLite migration.
+single-board detection, concurrent uploads through Chrome and Firefox API namespaces, Firefox
+packaging, batch atomicity, retry deduplication, and SQLite migration.
 API tests use a temporary database and an ephemeral port, leaving the demo database untouched.
+`web-ext` is a development dependency used only to validate and package the Firefox add-on;
+the API server and Node tests still need no external runtime dependencies.
 
 ### Moving to Microsoft SQL Server
 
@@ -240,6 +301,6 @@ The extension doesn't need any change.
 
 ## Production notes
 
-- **MV3 service workers sleep.** Nothing important is kept in memory. The queue and history live in `chrome.storage.local`, and a `chrome.alarms` timer retries every 30 s or more. Results survive browser restarts.
+- **MV3 background contexts sleep.** Chrome service workers and Firefox event pages may unload when idle. The queue and history live in extension local storage, and an alarms timer retries every 30 s or more. Results survive browser restarts.
 - **Background tabs.** Chrome throttles timers in hidden tabs. `MutationObserver` still fires whenever the tester page updates its DOM, so detection works in background tabs. On kiosk testers you can also turn off `IntensiveWakeUpThrottlingEnabled` through policy.
 - **Permissions.** The content script is registered for `<all_urls>`, but it exits immediately on pages that match no profile. In production you can narrow `matches` and `host_permissions` to your tester hosts.

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_PROFILES } from '../../extension/profiles.js';
 
-test('concurrent batches survive enqueue and an in-flight upload; endpoint parameters are preserved', async () => {
+for (const apiName of ['chrome', 'browser']) test(`${apiName}: concurrent batches survive enqueue and an in-flight upload; endpoint parameters are preserved`, async () => {
   const stored = { localConfig: { api_endpoint: 'https://mes.example.com/results?line=SMT-3' } };
   const session = {};
   const area = (data) => ({
@@ -29,7 +29,7 @@ test('concurrent batches survive enqueue and an in-flight upload; endpoint param
     .replace('export async function getConfig()', 'async function getConfig()');
   const context = vm.createContext({
     DEFAULT_PROFILES, crypto: { randomUUID }, console, URL,
-    chrome: {
+    [apiName]: {
       storage: { local: area(stored), session: area(session), managed: area({}), onChanged: noopEvent },
       tabs: { onRemoved: noopEvent },
       action: { async setBadgeText() {}, async setBadgeBackgroundColor() {} },
@@ -47,6 +47,7 @@ test('concurrent batches survive enqueue and an in-flight upload; endpoint param
       return { ok: true, status: 201 };
     },
   });
+  if (apiName === 'browser') context.chrome = {};
   vm.runInContext(code, context);
   const send = (msg) => new Promise((resolve) => listener(msg, { tab: { id: 1, url: 'http://tester/image' } }, resolve));
   const msg = (serial) => ({

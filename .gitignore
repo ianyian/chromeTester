@@ -1,3 +1,5 @@
 *.pem
 server/data/
 node_modules/
+server/firefox-addon/
+server/firefox-artifacts/

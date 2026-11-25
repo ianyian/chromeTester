@@ -1,6 +1,7 @@
-// Service worker: configuration, profile matching, upload queue with retry.
+// Background context: configuration, profile matching, upload queue with retry.
 import { DEFAULT_PROFILES } from './profiles.js';
 
+const chrome = globalThis.browser || globalThis.chrome;
 const NATIVE_HOST = 'com.pcbtester.hostinfo';
 const HISTORY_MAX = 200;
 const DEFAULTS = {

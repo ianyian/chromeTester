@@ -1,13 +1,17 @@
 {
   "name": "pcb-test-collector",
   "version": "1.0.0",
-  "description": "REST API (SQLite) that stores PCB board test results reported by the Chrome extension, and hosts the demo tester pages.",
+  "description": "REST API (SQLite) that stores PCB board test results reported by the Chrome and Firefox extensions, and hosts the demo tester pages.",
   "type": "module",
   "private": true,
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
-    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "build:firefox": "node build-firefox.js && web-ext lint --source-dir firefox-addon && web-ext build --source-dir firefox-addon --artifacts-dir firefox-artifacts --overwrite-dest"
+  },
+  "devDependencies": {
+    "web-ext": "^10.8.0"
   }
 }

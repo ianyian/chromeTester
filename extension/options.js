@@ -1,5 +1,6 @@
 import { validateProfiles } from './profiles.js';
 
+const chrome = globalThis.browser || globalThis.chrome;
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['tester_id', 'machine_name', 'api_endpoint', 'demo_base_url', 'retry_interval_sec'];
 const CHECKS = ['enabled', 'use_native_hostname'];

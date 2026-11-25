@@ -3,6 +3,7 @@
 // reports exactly once per test cycle when the state moves into PASSED / FAILED.
 (async () => {
   'use strict';
+  const chrome = globalThis.browser || globalThis.chrome;
   if (window.top !== window) return;
 
   let profile;
