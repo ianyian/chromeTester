@@ -42,7 +42,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_results_serial ON test_results(serial_number);
   CREATE INDEX IF NOT EXISTS idx_results_tester ON test_results(tester_id);
   CREATE INDEX IF NOT EXISTS idx_results_station ON test_results(station);
+  CREATE TABLE IF NOT EXISTS test_batches (
+    event_id       TEXT PRIMARY KEY,
+    overall_status TEXT NOT NULL CHECK (overall_status IN ('PASSED','FAILED')),
+    skipped_cells  TEXT NOT NULL
+  );
 `);
+
+const columns = new Set(db.prepare('PRAGMA table_info(test_results)').all().map((c) => c.name));
+for (const column of ['batch_id', 'cell_id']) {
+  if (!columns.has(column)) db.exec(`ALTER TABLE test_results ADD COLUMN ${column} TEXT`);
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_results_batch ON test_results(batch_id)');
 
 const stmt = {
   insert: db.prepare(`
@@ -52,6 +63,14 @@ const stmt = {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
   byEvent: db.prepare('SELECT * FROM test_results WHERE event_id = ?'),
   byId: db.prepare('SELECT * FROM test_results WHERE id = ?'),
+  insertCell: db.prepare(`
+    INSERT INTO test_results
+      (event_id, serial_number, status, tester_id, machine_name, tab_id, station, station_name,
+       program, failed_steps, cycle_time_ms, page_url, start_time, end_time, batch_id, cell_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+  insertBatch: db.prepare('INSERT INTO test_batches (event_id, overall_status, skipped_cells) VALUES (?,?,?)'),
+  batch: db.prepare('SELECT * FROM test_batches WHERE event_id = ?'),
+  batchResults: db.prepare('SELECT * FROM test_results WHERE batch_id = ? ORDER BY id'),
   stats: db.prepare(`
     SELECT tester_id, machine_name, station, station_name,
            COUNT(*) AS total,
@@ -66,7 +85,11 @@ function rowOut(r) {
   if (!r) return r;
   let failed = [];
   try { failed = r.failed_steps ? JSON.parse(r.failed_steps) : []; } catch { /* keep [] */ }
-  return { ...r, failed_steps: failed };
+  const batch = r.batch_id ? stmt.batch.get(r.batch_id) : null;
+  return {
+    ...r, failed_steps: failed,
+    ...(batch ? { overall_status: batch.overall_status, skipped_cells: JSON.parse(batch.skipped_cells) } : {}),
+  };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -129,6 +152,78 @@ function validateResult(b) {
   };
 }
 
+function saveBatch(body, res) {
+  const errors = [];
+  const eventId = body.eventId;
+  const results = body.results;
+  const skipped = body.skippedCells ?? [];
+  if (typeof eventId !== 'string' || !eventId.trim() || eventId.length > 128) errors.push('Batch eventId is required (max 128 characters)');
+  if (body.completed !== true) errors.push('Batch completed must be true');
+  if (!Array.isArray(results) || !results.length || results.length > 64) errors.push('results must contain 1 to 64 completed active cells');
+  if (!Array.isArray(skipped) || skipped.length > 64) errors.push('skippedCells must be an array of at most 64 malfunction cells');
+  if (errors.length) return send(res, 400, { error: 'validation_failed', details: errors });
+  if (results.length + skipped.length > 64) errors.push('A batch can contain at most 64 cells');
+
+  const cellIds = new Set();
+  const eventIds = new Set();
+  const serials = new Set();
+  const values = [];
+  function cellIdOf(cell) {
+    const id = cell?.cellId;
+    if (typeof id !== 'string' || !id.trim() || id.length > 64 || cellIds.has(id)) {
+      errors.push('Every cell needs a unique cellId (max 64 characters)');
+    }
+    cellIds.add(id);
+    return id;
+  }
+  for (const cell of results) {
+    const cellId = cellIdOf(cell);
+    if (!cell || typeof cell !== 'object' || Array.isArray(cell)) { errors.push('Invalid cell result'); continue; }
+    if (typeof cell.eventId !== 'string' || !cell.eventId.trim() || cell.eventId.length > 128 || eventIds.has(cell.eventId)) {
+      errors.push('Every active cell needs a unique eventId (max 128 characters)');
+    }
+    eventIds.add(cell.eventId);
+    const { errors: cellErrors, value } = validateResult({
+      ...body, ...cell,
+      testerId: body.testerId, machineName: body.machineName, tabId: body.tabId,
+      station: body.station, stationName: body.stationName, program: body.program, pageUrl: body.pageUrl,
+    });
+    errors.push(...cellErrors.map((e) => `Cell ${cellId}: ${e}`));
+    if (serials.has(value.serial)) errors.push('Active cells must have different serial numbers');
+    serials.add(value.serial);
+    values.push({ ...value, cellId });
+  }
+  const skippedCells = skipped.map((cell) => {
+    const cellId = cellIdOf(cell);
+    if (cell?.status !== 'MALFUNCTION') errors.push('Skipped cells must have status MALFUNCTION');
+    return { cellId, status: 'MALFUNCTION', rawStatus: str(cell?.rawStatus, 64), serialNumber: str(cell?.serialNumber, 128) };
+  });
+  const overallStatus = values.some((v) => v.status === 'FAILED') ? 'FAILED' : 'PASSED';
+  if (body.overallStatus !== overallStatus) errors.push(`overallStatus must be ${overallStatus}`);
+  if (errors.length) return send(res, 400, { error: 'validation_failed', details: errors });
+
+  if (stmt.batch.get(eventId)) {
+    return send(res, 200, { duplicate: true, eventId, results: stmt.batchResults.all(eventId).map(rowOut) });
+  }
+  if (values.some((v) => stmt.byEvent.get(v.eventId))) {
+    return send(res, 409, { error: 'cell_event_id_conflict' });
+  }
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    stmt.insertBatch.run(eventId, overallStatus, JSON.stringify(skippedCells));
+    for (const v of values) {
+      stmt.insertCell.run(v.eventId, v.serial, v.status, v.testerId, v.machineName, v.tabId,
+        v.station, v.stationName, v.program, v.failed, v.cycle, v.pageUrl, v.startTime, v.endTime, eventId, v.cellId);
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  console.log(`SAVE BATCH ${eventId} ${overallStatus}: ${values.length} active, ${skippedCells.length} malfunction`);
+  return send(res, 201, { duplicate: false, eventId, results: stmt.batchResults.all(eventId).map(rowOut) });
+}
+
 // ---------------------------------------------------------------- API
 async function handleApi(req, res, url) {
   const p = url.pathname;
@@ -142,6 +237,8 @@ async function handleApi(req, res, url) {
   // POST /api/tester/completed  (primary)  — POST /api/test-results (alias)
   if ((p === '/api/tester/completed' || p === '/api/test-results') && req.method === 'POST') {
     const body = await readJson(req);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { error: 'Expected a result object' });
+    if ('results' in body) return saveBatch(body, res);
     const { errors, value: v } = validateResult(body);
     if (errors.length) return send(res, 400, { error: 'validation_failed', details: errors });
     const info = stmt.insert.run(v.eventId, v.serial, v.status, v.testerId, v.machineName, v.tabId,
@@ -168,7 +265,13 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/test-results' && req.method === 'DELETE') {
-    const info = stmt.clear.run();
+    db.exec('BEGIN IMMEDIATE');
+    let info;
+    try {
+      info = stmt.clear.run();
+      db.exec('DELETE FROM test_batches');
+      db.exec('COMMIT');
+    } catch (e) { db.exec('ROLLBACK'); throw e; }
     return send(res, 200, { deleted: Number(info.changes) });
   }
 
@@ -224,9 +327,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`PCB Tester Collector listening on http://localhost:${PORT}`);
-  console.log(`  Testers   : http://localhost:${PORT}/`);
-  console.log(`  Dashboard : http://localhost:${PORT}/dashboard.html`);
-  console.log(`  API       : POST http://localhost:${PORT}/api/tester/completed`);
+  const port = server.address().port;
+  console.log(`PCB Tester Collector listening on http://localhost:${port}`);
+  console.log(`  Testers   : http://localhost:${port}/`);
+  console.log(`  Dashboard : http://localhost:${port}/dashboard.html`);
+  console.log(`  API       : POST http://localhost:${port}/api/tester/completed`);
   console.log(`  SQLite DB : ${DB_FILE}`);
 });

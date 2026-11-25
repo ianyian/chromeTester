@@ -21,8 +21,8 @@ function render(st) {
     : '<tr><td colspan="5" class="empty">No tester tabs detected. Open the demo testers.</td></tr>';
 
   $('hist').innerHTML = st.history.length ? st.history.slice(0, 50).map((h) => `
-    <tr title="${esc(h.error || '')}"><td>${time(h.endTime || h.timestamp)}</td><td>${esc(h.station)}</td><td>${esc(h.serialNumber)}</td>
-    <td class="${esc(h.status)}">${esc(h.status)}</td><td class="${esc(h.state)}">${esc(h.state)}${h.http ? ' ' + h.http : ''}</td></tr>`).join('')
+    <tr title="${esc(h.error || (h.results ? h.results.map((r) => `${r.cellId}: ${r.serialNumber} ${r.status}`).join(', ') : ''))}"><td>${time(h.endTime || h.timestamp)}</td><td>${esc(h.station)}</td><td>${esc(h.results ? `${h.results.length} cells (${h.skippedCells.length} malfunction)` : h.serialNumber)}</td>
+    <td class="${esc(h.overallStatus || h.status)}">${esc(h.overallStatus || h.status)}</td><td class="${esc(h.state)}">${esc(h.state)}${h.http ? ' ' + h.http : ''}</td></tr>`).join('')
     : '<tr><td colspan="5" class="empty">Nothing reported yet.</td></tr>';
 }
 

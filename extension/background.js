@@ -89,11 +89,21 @@ async function pushHistory(entry) {
 }
 
 async function enqueue(payload) {
-  const { queue = [] } = await chrome.storage.local.get('queue');
-  queue.push(payload);
-  await chrome.storage.local.set({ queue });
-  await pushHistory({ ...payload, state: 'pending' });
+  await changeStorage(async () => {
+    const { queue = [] } = await chrome.storage.local.get('queue');
+    queue.push(payload);
+    await chrome.storage.local.set({ queue });
+    await pushHistory({ ...payload, state: 'pending' });
+  });
   await refreshBadge();
+}
+
+// Serialize read/modify/write operations, including arrivals while an upload is in flight.
+let storageWork = Promise.resolve();
+function changeStorage(work) {
+  const next = storageWork.then(work);
+  storageWork = next.catch((e) => console.error('[PCB Collector] storage update failed', e));
+  return next;
 }
 
 let flushing = null;
@@ -104,8 +114,10 @@ function flush() {
 
 async function doFlush() {
   const cfg = await getConfig();
-  let { queue = [] } = await chrome.storage.local.get('queue');
-  while (queue.length) {
+  while (true) {
+    await storageWork;
+    const { queue = [] } = await chrome.storage.local.get('queue');
+    if (!queue.length) break;
     const item = queue[0];
     let outcome;
     try {
@@ -123,16 +135,17 @@ async function doFlush() {
     }
 
     if (outcome.state === 'retry') {
-      await pushHistory({ eventId: item.eventId, state: 'pending', error: outcome.error, lastTry: Date.now() });
+      await changeStorage(() => pushHistory({ eventId: item.eventId, state: 'pending', error: outcome.error, lastTry: Date.now() }));
       break; // keep order; retry on next alarm
     }
-    queue = queue.slice(1);
-    await chrome.storage.local.set({ queue });
-    await pushHistory({ eventId: item.eventId, ...outcome, sentAt: Date.now() });
-    if (outcome.state === 'sent') {
-      const { sentCount = 0 } = await chrome.storage.local.get('sentCount');
-      await chrome.storage.local.set({ sentCount: sentCount + 1 });
-    }
+    await changeStorage(async () => {
+      const current = await chrome.storage.local.get(['queue', 'sentCount']);
+      await chrome.storage.local.set({ queue: (current.queue || []).filter((p) => p.eventId !== item.eventId) });
+      await pushHistory({ eventId: item.eventId, ...outcome, sentAt: Date.now() });
+      if (outcome.state === 'sent') {
+        await chrome.storage.local.set({ sentCount: (current.sentCount || 0) + (item.results?.length || 1) });
+      }
+    });
   }
   await refreshBadge();
 }
@@ -211,6 +224,44 @@ const handlers = {
     return { ok: true, eventId: payload.eventId };
   },
 
+  async verdictBatch(msg, sender) {
+    const cfg = await getConfig();
+    if (!cfg.enabled) return { ok: false, reason: 'disabled' };
+    if (!Array.isArray(msg.results) || !msg.results.length || msg.results.length > 64) {
+      throw new Error('A cell batch needs between 1 and 64 results');
+    }
+    const ids = new Set();
+    for (const r of msg.results) {
+      if (!r.cellId || ids.has(r.cellId) || !r.serialNumber || !['PASSED', 'FAILED'].includes(r.status)) {
+        throw new Error('Each active cell needs a unique cell ID, serial and final result');
+      }
+      ids.add(r.cellId);
+    }
+    const eventId = crypto.randomUUID();
+    const payload = {
+      eventId,
+      testerId: cfg.tester_id || null,
+      machineName: cfg.machine_name || null,
+      tabId: sender.tab?.id ?? null,
+      station: msg.station || null,
+      stationName: msg.stationName || null,
+      program: msg.program || null,
+      completed: true,
+      overallStatus: msg.results.some((r) => r.status === 'FAILED') ? 'FAILED' : 'PASSED',
+      skippedCells: msg.skippedCells || [],
+      results: msg.results.map((r) => ({ ...r, eventId: crypto.randomUUID() })),
+      endTime: msg.endTime || new Date().toISOString(),
+      pageUrl: sender.tab?.url || msg.url,
+      timestamp: new Date().toISOString(),
+    };
+    await updateTab(payload.tabId, {
+      lastVerdict: payload.overallStatus, lastSerial: `${payload.results.length} cells`, lastAt: Date.now(),
+    });
+    await enqueue(payload);
+    flush();
+    return { ok: true, eventId };
+  },
+
   async getState() {
     const cfg = await getConfig();
     const s = await chrome.storage.local.get(['queue', 'history', 'sentCount']);
@@ -234,7 +285,7 @@ const handlers = {
   async openDemo() {
     const cfg = await getConfig();
     const base = cfg.demo_base_url.replace(/\/$/, '');
-    for (const p of ['ict.html', 'fct.html', 'jtag.html', 'flying-probe.html']) {
+    for (const p of ['ict.html', 'fct.html', 'jtag.html', 'flying-probe.html', 'image.html']) {
       await chrome.tabs.create({ url: `${base}/testers/${p}`, active: false });
     }
     return {};

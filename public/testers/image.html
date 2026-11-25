@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMG-05 Eight-Cell Image Tester</title>
+<link rel="stylesheet" href="../assets/tester.css">
+<style>
+  .vision { padding: 16px; display: grid; gap: 14px; }
+  .overview { display: grid; grid-template-columns: minmax(240px, 1fr) 2fr; gap: 16px; }
+  .cells { display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr)); gap: 12px; }
+  .image-cell { padding: 12px; background: var(--panel); border: 2px solid var(--edge); border-radius: 6px; }
+  .image-cell h2 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
+  .camera { height: 110px; margin: 10px 0; display: grid; place-items: center; background: repeating-linear-gradient(90deg, #0c271d 0 18px, #13422d 18px 20px); }
+  .camera span { padding: 18px; border: 2px solid #bc9d4a; background: #132019; font: 700 18px var(--mono); }
+  .cell-status { font: 700 20px var(--mono); margin: 8px 0; }
+  .image-cell[data-state="PASSED"] { border-color: var(--ok); }
+  .image-cell[data-state="FAILED"] { border-color: var(--ng); }
+  .image-cell[data-state="MALFUNCTION"] { opacity: .6; border-style: dashed; }
+  .cell-failure { color: var(--ng); min-height: 18px; }
+  .cell-step { color: var(--dim); min-height: 32px; margin-top: 6px; }
+  .cell-control { display: block; margin-top: 8px; color: var(--dim); }
+  #summary { margin-top: 8px; color: var(--accent); }
+  @media (max-width: 1000px) { .cells { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .overview, .cells { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="titlebar"><div class="logo">AOI</div><div><h1>VisionInspect - Station IMG-05</h1><div class="sub">Eight independent image-test cells / one completed batch</div></div></div>
+<main class="vision">
+  <section class="panel"><h2>Batch control</h2><div class="body overview">
+    <div><div id="imageOverall" class="verdict st-idle" data-state="IDLE">IDLE</div><div id="summary">Ready</div></div>
+    <div class="controls">
+      <div class="btnrow"><button id="start" class="primary">Start batch</button><button id="abort" class="danger" disabled>Abort batch</button></div>
+      <label><span><input id="auto" type="checkbox" checked> Auto cycle</span></label>
+      <label>Fail rate <input id="failRate" type="range" min="0" max="100" value="25"><span id="failRateOut">25%</span></label>
+      <label>Speed <input id="speed" type="range" min="0.5" max="5" step="0.5" value="1"><span id="speedOut">1x</span></label>
+      <p>Each cell has its own serial. A failed cell stops immediately; other cells keep running. Malfunction cells cannot test and are ignored for overall pass/fail. Cell configuration is locked while a batch runs.</p>
+    </div>
+  </div></section>
+  <div id="cells" class="cells"></div>
+  <section class="panel"><h2>Batch event log</h2><div id="log" class="log" style="height:150px;flex:none"></div></section>
+</main>
+<script src="../assets/image-tester.js"></script>
+</body>
+</html>

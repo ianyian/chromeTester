@@ -2,7 +2,8 @@
 
 A Chrome extension that watches several PCB tester program tabs at once. When a tab's test cycle
 finishes with **PASSED** or **FAILED**, it reads the **board serial number** from the page and posts it
-to a REST API that stores it in a database (SQLite for this demo).
+to a REST API that stores it in a database (SQLite for this demo). Multi-cell testers upload all active
+serials together only after the full batch completes, excluding malfunction cells from pass/fail.
 
 ```
  Linux tester PC (PCB-TESTER-001)                                     Central server
@@ -21,7 +22,7 @@ to a REST API that stores it in a database (SQLite for this demo).
 |---|---|
 | `extension/` | Chrome MV3 extension: content script, service worker, popup, options page, native-messaging host |
 | `server/` | REST API plus static host for the demo pages. **No dependencies**: it uses Node's built-in `node:sqlite` |
-| `public/testers/` | 4 simulated tester programs (ICT, FCT, JTAG boundary scan, flying probe), each with different markup |
+| `public/testers/` | 5 simulated tester programs (ICT, FCT, JTAG boundary scan, flying probe, eight-cell image test), each with different markup |
 | `public/dashboard.html` | Live view of what landed in the database |
 | `deploy/` | Example per-machine config and Chrome policy file |
 
@@ -37,7 +38,7 @@ npm start
 Then:
 
 1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the `extension/` folder.
-2. Click the extension icon, then **Open demo testers**. Four tester tabs open and start cycling boards automatically.
+2. Click the extension icon, then **Open demo testers**. Five tester tabs open and start cycling boards automatically.
 3. Click **Dashboard**, or open http://localhost:3000/dashboard.html, to watch results arrive in SQLite (`server/data/test_results.db`).
 
 Each tester page has its own controls: Start / Abort, auto cycle, **fail rate**, and **speed**.
@@ -53,6 +54,7 @@ You can stop the server for a while to see results queue up in the extension (re
 | FCT-02 | `.fct-verdict` **attribute** `data-verdict` | `PASSED` / `FAILED` | `td[data-field=sn]` |
 | BSC-03 | `#jtag-state` text | `PASS` / `FAIL` | `<input id=dutSn>` **value** |
 | FPT-04 | `.status-lamp .label` text | `PASSED` / `FAILED` | `"S/N: …"` parsed with **regex** |
+| IMG-05 | `#imageOverall` attribute `data-state` | `COMPLETE`; per-cell `PASSED` / `FAILED` | Each cell's `.cell-serial` input |
 
 The content script observes the page with a `MutationObserver`, plus a 1-second poll for `<input>` values.
 It reports **once per test cycle**. A verdict is only reported after a non-final state (TESTING, IDLE, …) has been seen first.
@@ -61,6 +63,66 @@ Each event gets a UUID `eventId`, and the API ignores repeats of the same ID (`I
 
 To support a real tester program, add a profile (Options page, policy, or `profiles.js`).
 Alternatively, the tester page can follow the generic convention: `data-tester-status="PASSED"` and `data-board-serial="…"`.
+
+### Multi-cell tester / image-test demo
+
+Open http://localhost:3000/testers/image.html. Eight cells run independently with different serials.
+By default, cell 2 demonstrates an early failure and cell 8 is malfunctioning. Disable **Auto cycle**
+to enter serials manually; use each cell's **Cell malfunction** and **Force early failure** controls
+between batches. Failed cells stop immediately while other cells continue.
+
+The collector waits until **every active cell** is PASSED or FAILED. Malfunction cells are ignored
+for completion and overall pass/fail, but retained as `MALFUNCTION` batch metadata. An all-malfunction
+cycle uploads no board records. Any active FAILED result makes overall FAILED; otherwise overall
+is PASSED. This does not prevent uploading a completed failed batch.
+
+The extension sends **one request for the complete batch**, and SQLite inserts **one row per active
+serial in a single transaction**. Each row keeps its own result, `batch_id`, and `cell_id`. API queries
+also return `overall_status` and `skipped_cells`; malfunction cells are not counted as tested boards.
+The dashboard shows cell IDs, overall results, and malfunction cells. Hover over a cell ID to see its
+batch ID, or over a batch in extension history to see its individual results.
+
+### Configuring API URL and result indicators
+
+Open the extension's **Settings**:
+
+- **API URL** is the full POST endpoint. Query parameters such as `?line=SMT-3` are preserved.
+  Save it and use **Test API** (this demo's health check is `/api/health` on that endpoint's origin;
+  external APIs must expose that route for this button to work). Managed-policy URLs stay locked.
+- Under **Per-tester result detection**, select a profile or **Add tester profile**. Set the URL
+  regex, overall status CSS selector/source, serial mapping, and status words. First matching URL wins;
+  put specific profiles before the generic catch-all.
+- For single-board testers, choose **Single-board overall PASSED / FAILED** and point the status
+  selector at the *overall verdict*, never at an individual step's result.
+- For multi-cell testers, choose **all active cells PASSED / FAILED**, or additionally require
+  an **overall indicator complete**. The latter recognizes overall pass/fail words plus any
+  additional completion words (such as `COMPLETE`). Even an early overall FAILED indicator never
+  bypasses unfinished active cells.
+- Set the expected total cell count (including malfunction cells), cell-container selector, and
+  selectors **relative to each container** for status, serial, and optional failed steps. Cell IDs
+  can come from a container attribute such as `attr:data-cell-id`; otherwise positions are used.
+  Missing containers, missing active serials, and unknown cell statuses block upload, rather than
+  being treated as skipped. Cell IDs must be unique and stable through a cycle.
+- Configure explicit malfunction words (`MALFUNCTION` and the legacy spelling `MULFUNCTION` are
+  supported in the image demo). Map only actual disabled/bad cells as skipped, not pending cells.
+- Multi-cell cycle detection requires observing an overall running word (e.g. TESTING), followed
+  by completion. The page must reset its overall indicator between cycles; an aborted cycle should
+  return to IDLE, not COMPLETE. Reloading a completed page does not report the old batch.
+
+Click **Save tester settings** and **reload tester tabs**. Advanced JSON profiles remain available.
+The built-in `demo-image` profile in `extension/profiles.js` is a complete eight-cell mapping example.
+
+If IMG-05 runs but does not appear on the dashboard:
+
+1. Reload the unpacked extension on `chrome://extensions` after updating its code, then reload tester tabs.
+   Reloading only a tester page does not refresh Chrome's loaded extension code.
+2. Check **Settings → Tester profile** for IMG-05. A saved profiles array overrides the entire built-in
+   list, so an older saved list will not automatically gain new demo profiles. Add the missing image
+   profile before the generic catch-all, preserving custom profiles, or use **Use built-in profiles**
+   if you do not need your saved customizations.
+3. Check the extension popup for IMG-05 under **Monitored tabs**, upload errors, and API connectivity.
+   Start the demo server if it is offline. After a complete batch, the dashboard shows each cell's own
+   **Result**, the batch's **Overall** result, and the malfunction-cell metadata.
 
 ## Per-machine configuration (one extension, many testers)
 
@@ -94,7 +156,7 @@ Notes:
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/tester/completed` | Save a result (alias: `POST /api/test-results`). Returns 201 when created, 200 `{duplicate:true}` for a repeated `eventId`, 400 on validation errors |
+| `POST /api/tester/completed` | Save a result or complete cell batch (alias: `POST /api/test-results`). Returns 201 when created, 200 `{duplicate:true}` for a repeated `eventId`, 400 on validation errors, 409 for conflicting cell event IDs |
 | `GET /api/test-results?status=&tester=&station=&serial=&limit=` | Query results (newest first) |
 | `GET /api/test-results/:id` | Fetch one result |
 | `GET /api/stats` | Totals and yield per tester and station |
@@ -130,12 +192,49 @@ Example payload sent by the extension:
 curl -X POST http://localhost:3000/api/tester/completed -H 'Content-Type: application/json' -d '{"serialNumber":"SN-TEST-1","status":"PASSED","testerId":"PCB-TESTER-001","station":"MANUAL"}'
 ```
 
+Multi-cell request (same endpoint; each active cell needs a stable event ID for retries):
+
+```json
+{
+  "eventId": "batch-uuid",
+  "testerId": "PCB-TESTER-001",
+  "station": "IMG-05",
+  "completed": true,
+  "overallStatus": "FAILED",
+  "results": [
+    { "eventId": "cell-uuid-1", "cellId": "1", "serialNumber": "IMG-001", "status": "PASSED" },
+    { "eventId": "cell-uuid-2", "cellId": "2", "serialNumber": "IMG-002", "status": "FAILED", "failedSteps": ["Image alignment"] }
+  ],
+  "skippedCells": [
+    { "cellId": "3", "status": "MALFUNCTION", "rawStatus": "MULFUNCTION", "serialNumber": null }
+  ]
+}
+```
+
+The batch API accepts up to 64 total cells, validates the entire batch before inserting, and rejects
+incomplete active results or duplicate cell IDs/serials. Retrying the same batch ID returns the already
+saved rows. Existing databases are upgraded additively on startup; single-board requests keep working.
+Custom API endpoints must support this batch shape to receive multi-cell results.
+
+## Tests
+
+```bash
+cd server
+npm test
+```
+
+Uses Node's built-in test runner with no dependencies. Tests cover cell completion/skip gating,
+single-board detection, concurrent uploads, batch atomicity, retry deduplication, and SQLite migration.
+API tests use a temporary database and an ephemeral port, leaving the demo database untouched.
+
 ### Moving to Microsoft SQL Server
 
 All SQL lives in `server/server.js`, in the `db` and `stmt` section. To move to MSSQL, replace that section with the `mssql` package and an equivalent table:
 
 - `INSERT OR IGNORE` becomes `MERGE`, or `IF NOT EXISTS … INSERT`.
 - Keep a unique index on `event_id`.
+- Preserve the batch table, cell/batch IDs, and transaction around all active cell inserts so a batch
+  cannot be saved partially.
 
 The extension doesn't need any change.
 

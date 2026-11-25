@@ -16,7 +16,7 @@ button { font: 600 11px sans-serif; padding: 5px 9px; border-radius: 3px; border
 button:hover { filter: brightness(1.2); }
 .btns { display: flex; gap: 5px; flex-wrap: wrap; }
 .empty { color: var(--dim); font-style: italic; }
-input[type=text], textarea { width: 100%; background: #0a0e11; color: var(--text); border: 1px solid var(--edge); padding: 6px; font: 12px monospace; border-radius: 3px; }
+input[type=text], textarea, select { width: 100%; background: #0a0e11; color: var(--text); border: 1px solid var(--edge); padding: 6px; font: 12px monospace; border-radius: 3px; }
 input:disabled, textarea:disabled { opacity: .55; }
 label.f { display: block; margin: 8px 0 3px; color: var(--dim); font-size: 11px; }
 .lock { color: var(--warn); font-size: 10px; margin-left: 6px; }

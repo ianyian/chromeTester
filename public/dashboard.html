@@ -47,7 +47,7 @@
         </div>
         <div style="max-height:60vh;overflow:auto;margin-top:8px">
           <table class="res">
-            <thead><tr><th>ID</th><th>Received</th><th>Serial number</th><th>Result</th><th>Tester ID</th><th>Machine</th><th>Tab</th><th>Station</th><th>Program</th><th>Cycle</th><th>Failed steps</th></tr></thead>
+            <thead><tr><th>ID</th><th>Received</th><th>Serial number</th><th>Result</th><th>Tester ID</th><th>Machine</th><th>Tab</th><th>Station</th><th>Program</th><th>Cell / Batch</th><th>Overall</th><th>Malfunction cells</th><th>Cycle</th><th>Failed steps</th></tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div>
@@ -83,9 +83,11 @@ async function load() {
     <tr class="${maxBefore && r.id > maxBefore ? 'new' : ''}"><td>${r.id}</td><td>${new Date(r.received_at).toLocaleTimeString()}</td>
     <td>${esc(r.serial_number)}</td><td class="${esc(r.status)}">${esc(r.status)}</td><td>${esc(r.tester_id)}</td><td>${esc(r.machine_name)}</td>
     <td>${r.tab_id ?? ''}</td><td>${esc(r.station)}</td><td>${esc(r.program)}</td>
+    <td title="${esc(r.batch_id)}">${esc(r.cell_id)}</td><td class="${esc(r.overall_status)}">${esc(r.overall_status)}</td>
+    <td>${esc((r.skipped_cells || []).map((c) => c.cellId + ' MALFUNCTION').join(', '))}</td>
     <td>${r.cycle_time_ms ? (r.cycle_time_ms / 1000).toFixed(1) + 's' : ''}</td>
     <td style="color:var(--ng);white-space:normal">${esc((r.failed_steps || []).join(', '))}</td></tr>`).join('')
-    || '<tr><td colspan="11" style="color:var(--dim)">No results yet. Open the tester tabs with the extension installed.</td></tr>';
+    || '<tr><td colspan="14" style="color:var(--dim)">No results yet. Open the tester tabs with the extension installed.</td></tr>';
   lastMaxId = Math.max(lastMaxId, ...res.results.map((r) => r.id), 0);
 }
 
